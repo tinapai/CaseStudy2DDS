@@ -331,6 +331,10 @@ mutate(zYearsWithCurrManager = scale(YearsWithCurrManager))
 nz <- dim(employees_z)[2]
 employees_z <- employees_z[,c((n+1):nz)]
 employees_z$Attrition = employees$Attrition
+#get rid of nans
+colSums(is.na(employees_z))
+employees_z$zStandardHours <- NULL
+employees_z$zEmployeeCount <- NULL
 str(employees_z)
 
 ```
@@ -341,10 +345,6 @@ Predict attrition - KNN
 #KNN
 ##load the package class
  library(class)
-
-employees_num <- employees_num %>%
-  select_if(is.numeric) %>%
-  mutate(Attrition = employees_num$Attrition)
 
 train <- split_train_test(employees_num)[[1]]
 test <- split_train_test(employees_num)[[2]]
@@ -364,7 +364,7 @@ for(i in 1:80) {
 train <- split_train_test(employees_num)[[1]]
 test <- split_train_test(employees_num)[[2]]
 
-##run knn
+##get auc of knn
 preds.knn <- knn(train[, names(train) != "Attrition"], test[, names(train) != "Attrition"], cl=train$Attrition, k=i, prob=TRUE)
 prob.knn <- attr(preds.knn, "prob")
 preds.knn <- prediction(prob.knn, test$Attrition)
@@ -376,29 +376,15 @@ auc.knns <- c(auc.knns, auc)
 plot(x=1:80, y=auc.knns, xlab="k", main = "AUCs of KNN models with k=[1,80]")
 #all the KNN models are bad
 
-#second time
+#second time, this time with scaled variables
 
-employees_num <- employees_num %>%
-  select_if(is.numeric) %>%
-  mutate(Attrition = employees_num$Attrition)
-
-train <- split_train_test(employees_num)[[1]]
-test <- split_train_test(employees_num)[[2]]
-
-train$Attrition = as.character(train$Attrition)
-train$Attrition[which(train$Attrition == "No")] = 0
-train$Attrition[which(train$Attrition == "Yes")] = 1
-train$Attrition = as.numeric(train$Attrition)
-
-test$Attrition = as.character(test$Attrition)
-test$Attrition[which(test$Attrition == "No")] = 0
-test$Attrition[which(test$Attrition == "Yes")] = 1
-test$Attrition = as.numeric(test$Attrition)
+train <- split_train_test(employees_z)[[1]]
+test <- split_train_test(employees_z)[[2]]
 
 str(train)
 str(test)
-##run knn k=18 and make ROC
-preds.knn <- knn(train[, names(train) != "Attrition"], test[, names(train) != "Attrition"], cl=as.factor(train$Attrition), k=18, prob=TRUE)
+##run knn k=8 and make ROC
+preds.knn <- knn(train[, names(train) != "Attrition"], test[, names(train) != "Attrition"], cl=as.factor(train$Attrition), k=8, prob=TRUE)
 prob.knn <- attr(preds.knn, "prob")
 preds.knn <- prediction(prob.knn, test$Attrition)
 roc.perf_knn = performance(preds.knn, measure = "tpr", x.measure = "fpr")
@@ -413,7 +399,7 @@ for(i in 1:80) {
 train <- split_train_test(employees_num)[[1]]
 test <- split_train_test(employees_num)[[2]]
 
-##plot auc of knn for many ks
+##get auc of knn for many ks
 preds.knn <- knn(train[, names(train) != "Attrition"], test[, names(train) != "Attrition"], cl=train$Attrition, k=i, prob=TRUE)
 prob.knn <- attr(preds.knn, "prob")
 preds.knn <- prediction(prob.knn, test$Attrition)
