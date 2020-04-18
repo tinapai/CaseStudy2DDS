@@ -1,5 +1,5 @@
 ---
-title: "EDA"
+title: "Employee Data Analysis"
 author: "Tina Pai"
 date: "4/13/2020"
 output: html_document
@@ -8,6 +8,7 @@ output: html_document
 ## Introduction
 
 This is an analysis of employee data. We will:
+
 1) Explore trends and insights about job roles
 2) Determine what are the most influential factors in attrition
 3) Make a model of attrition
@@ -188,6 +189,9 @@ chisq.test(table(employees$JobInvolvement, employees$JobRole))
 
 ## Exploratory Analysis for Attrition
 
+
+#### EDA Continuous Variables
+
 What continuous variables have a difference in distribution of attrition? It looks like from these paired scatterplots that attrition is pretty scattered across our continuous variables and none of them show very distinct clusters of attrition. Years at company and years in current role seem, if anything, to show mildly that people who have been at the company past a certain number of years are less likely to leave.
 
 ```{r EDAAttrition, message=FALSE}
@@ -255,6 +259,8 @@ corrplot(M, method = "circle")
 ```
 
 
+#### EDA Categorical Variables
+
 What categorical variables have a difference in distribution in response? Many of them do! Particularly noticeably, those who are likely to leave are:
 
 * those with low job involvement
@@ -284,7 +290,12 @@ for(i in 1:length(categs)){
 
 ```
 
-setting up balanced train test split
+
+## Modeling Attrition
+
+#### Train Test Balanced Setup
+Because there are a much higherp proportion of "No" than "Yes" in our response variable Attrition, I am setting up a balanced train test split to help our models train properly.
+
 ```{r}
 
 split_train_test <- function(df) {
@@ -315,15 +326,17 @@ split_train_test <- function(df) {
 }
 ```
 
-Predict attrition - Naive Bayes
-```{r}
+### Predict attrition - Naive Bayes Model
+
+The Naive Bayes algorithm works alright. The model trained on the balanced training set has Sensitivity 0.68 and Specificity 0.80 at a .5 probability threshold for categorizing "Yes". The model trained on the unbalanced training set was worse; its ROC curve shows less area under the curve than the one trained on balanced data. So for the remainder of the classification models, we will just use the balanced training test split.
+
+```{r, message=FALSE}
 library(caret)
 library(e1071)
 library(ROCR)
 library(plotROC)
 
-#naive bayes
-#balanced training set
+#naive bayes on balanced training set
 train1 <- split_train_test(employees)[[1]]
 test1 <- split_train_test(employees)[[2]]
 model.nb1 <- naiveBayes(Attrition ~ ., data=train1)
@@ -333,7 +346,7 @@ preds.nb1 <- predict(model.nb1, test1, type = "raw")
 preds.nb1 <- prediction(preds.nb1[,2], test1$Attrition)
 roc.perf_1 = performance(preds.nb1, measure = "tpr", x.measure = "fpr")
 
-#unbalanced training set
+#naive bayes unbalanced training set
 folds <- createFolds(employees$Attrition, k=2)
 train2 <- employees[folds$Fold1,]
 test2 <- employees[folds$Fold2,]
@@ -344,12 +357,18 @@ preds.nb2 <- predict(model.nb2, test2, type = "raw")
 preds.nb2 <- prediction(preds.nb2[,2], test2$Attrition)
 roc.perf_2 = performance(preds.nb2, measure = "tpr", x.measure = "fpr")
 
-#the balanced one definitely looks better and .25 seems a good threshold
-plot(roc.perf_1, col="red")
+#the balanced one definitely looks better and .6 seems a good threshold
+plot(roc.perf_1, col="red", main = "ROCs of NB Model Trained on Balanced (red) and Unbalanced (blue)")
 plot(roc.perf_2, add = TRUE, col="blue")
+plot(roc.perf_1, colorize = TRUE, main="P Threshold Colorized ROC of NB trained on Balanced Data")
 ```
 
-make numeric and make standardize scale data for KNN
+### Predict attrition - KNN Model
+
+#### Formatting Data to Numeric and Scaled
+
+Another model for classification is KNN. KNN only takes numeric data and also is highly affected by the scale of the predictors, so I will make all the variables numeric and on a standardize scale for KNN.
+
 ```{r}
 #re-read in data
 employees_num <- read.csv("CaseStudy2-data.csv")
@@ -417,8 +436,11 @@ str(employees_z)
 ```
 
 
-Predict attrition - KNN
-```{r knn}
+#### KNN Model
+
+The KNN model appears to work quite badly! The ROC is just about the same as a coin flip, and it seems no value of K can make the area under the curve any better, regardless of having scaled or not scaled the variables.
+
+```{r knn, message=FALSE}
 #KNN
 ##load the package class
  library(class)
@@ -433,7 +455,7 @@ preds.knn <- prediction(prob.knn, test$Attrition)
 roc.perf_knn = performance(preds.knn, measure = "tpr", x.measure = "fpr")
 auc <- performance(preds.knn, measure = "auc")
 auc <- auc@y.values
-plot(roc.perf_knn, colorize = TRUE)
+plot(roc.perf_knn, colorize = TRUE,main = "ROC of KNN with k=8 on Original Scaled Data")
 
 auc.knns <- c()
 for(i in 1:80) {
@@ -454,13 +476,10 @@ plot(x=1:80, y=auc.knns, xlab="k", main = "AUCs of KNN models with k=[1,80]")
 #all the KNN models are bad
 
 #second time, this time with scaled variables
-
 train <- split_train_test(employees_z)[[1]]
 test <- split_train_test(employees_z)[[2]]
 
-str(train)
-str(test)
-##run knn k=8 and make ROC
+##run knn k=8 and make ROC--it still looks very bad
 preds.knn <- knn(train[, names(train) != "Attrition"], test[, names(train) != "Attrition"], cl=as.factor(train$Attrition), k=8, prob=TRUE)
 prob.knn <- attr(preds.knn, "prob")
 preds.knn <- prediction(prob.knn, test$Attrition)
@@ -468,7 +487,7 @@ roc.perf_knn = performance(preds.knn, measure = "tpr", x.measure = "fpr")
 auc <- performance(preds.knn, measure = "auc")
 auc <- auc@y.values
 auc.knns <- c(auc.knns, auc)
-plot(roc.perf_knn, colorize = TRUE)
+plot(roc.perf_knn, colorize = TRUE, main = "ROC of KNN with k=8 on Stardard Scaled Data")
 
 auc.knns <- c()
 for(i in 1:80) {
@@ -489,6 +508,9 @@ plot(x=1:80, y=auc.knns, xlab="k", main = "AUCs of KNN models with k=[1,80]")
 #they're all still bad
 ```
 
+### Predicting Attrition - Random Forest
+
+Random Forest works well! At a probability threshold of .5 for classifying as "Yes", the Random Forest model gets a .86 accuracy, .79 sensitivity, and .88 specificity. A comparison of its ROC curve verses the Naive Bayes model ROC curve shows that the Random Forest does better.
 
 ```{r categorize}
 #RF
@@ -507,24 +529,44 @@ preds.rf <- prediction(prob.rf[,2], test$Attrition)
 roc.rf = performance(preds.rf, measure = "tpr", x.measure = "fpr")
 
 #the balanced one definitely looks better and .25 seems a good threshold
-plot(roc.perf_1, col="red")
-plot(roc.rf, add = TRUE, col="blue")
+plot(roc.perf_1, col="red", main = "ROC of Naive Bayes (red) and Random Forest (green)")
+plot(roc.rf, add = TRUE, col="green")
 
+plot(roc.rf, colorize=TRUE, main = "Colorized P Threshold ROC Curve for RF Model")
+
+#Feature Importances
+featureimportances <- importance(model.rf)
+sort(featureimportances[,2], decreasing=TRUE)
 ```
 
-Random forest wins!
+### Conclusion of Attrition Model
+Random forest wins as a predictive model of attrition.
+From my analysis, the top influencing factors for attrition in a company appear to be:
 
-Regression time
+1) Job Involvement
+2) Overtime
+3) Job Role
 
-What continuous variables have a difference in distribution of the Monthly Income?
-pairs plots continuous
+
+## Modeling Salary
+
+### Exploratory Analysis of Monthly Income
+
+#### EDA Continuous Variables
+
+First, we can see that income has a right skew. What continuous variables have a difference in distribution of the Monthly Income? From the scatterplot matrices, the most noticeable correlations with income are:
+
+* Job Level
+* Total Working Years
+
 
 ```{r, message=FALSE}
 library(GGally)
 
 employees %>%
   ggplot(aes(x=MonthlyIncome)) +
-  geom_histogram()
+  geom_histogram() + 
+  ggtitle("Histogram of Monthly Income")
 
 employees %>%
   select_if(is.numeric) %>%
@@ -560,7 +602,13 @@ employees %>%
 
 ```
 
-What categorical variables have a difference in distribution in response?
+
+#### EDA Categorical Variables
+
+What categorical variables have a difference in distribution in response? Most are not very telling. But as mentioned in the exploration analysis above, one notable categorical variable that shows major differences in income is:
+
+* Job Role
+
 ```{r, message=FALSE}
 
 #there's 16 categorical variables
@@ -571,7 +619,8 @@ employees %>%
 categs <- names(select_if(employees, is.factor))
 
 for(i in 1:length(categs)){
-  print(employees %>%
+  print(
+    employees %>%
     ggplot(aes(x = eval(parse(text=categs[i])), y=MonthlyIncome)) +
     geom_boxplot() +
     xlab(categs[i])
@@ -580,13 +629,20 @@ for(i in 1:length(categs)){
 
 ```
 
-Make train test split
-```{r}
-folds <- createFolds(employees$ID, k=2)
-train <- employees[folds$Fold1,]
-test <- employees[folds$Fold2,]
+### Predict Monthly Income -- Linear Regression
 
-```
+To model income, we will first try to use linear regression. I try a number of linear regression models shown below--a manual model, a full model with everything, a LASSO selected model without interaction terms, a LASSO selected model with interaction terms, and a forward-selection model including interaction terms. The one with lowest RMSE is as selected by forward selection, and its formula is: 
+
+MonthlyIncome ~ JobLevel + JobRole + TotalWorkingYears + BusinessTravel + 
+    DailyRate + Gender + ID + MonthlyRate + Department + JobRole:TotalWorkingYears + 
+    TotalWorkingYears:BusinessTravel
+    
+* Manual RMSE: 1691
+* Full RMSE: 1143
+* LASSO 1 RMSE: 1057
+* LASSO 2 (with interactions) RMSE: 1026
+* Forward (with interactions) RMSE: 999
+
 
 manually selected variables based on EDA plots
 ```{r}
@@ -639,24 +695,34 @@ train <- employees[folds$Fold1,]
 test <- employees[folds$Fold2,]
 
 #find the lasso variable choices
-x_vars <- model.matrix(MonthlyIncome~. , employees)[,-1]
+x_vars <- model.matrix(MonthlyIncome ~ (Age + EmployeeNumber + NumCompaniesWorked +
+                  TotalWorkingYears + YearsAtCompany + YearsInCurrentRole + YearsSinceLastPromotion + Attrition + BusinessTravel + Department + Education + EducationField + JobRole + StockOptionLevel)^2 + . , employees)[,-1]
 cvfit <- cv.glmnet(x_vars, employees$MonthlyIncome)
 coef(cvfit, s = "lambda.1se")
 
 #fit the model
 lm.lasso <- lm(MonthlyIncome ~ Attrition+BusinessTravel+ DistanceFromHome + Education + EmployeeNumber + EnvironmentSatisfaction + Gender + JobLevel + JobRole + MonthlyRate + RelationshipSatisfaction+ TotalWorkingYears + YearsInCurrentRole + YearsSinceLastPromotion + YearsWithCurrManager, data=train)
 
+lm.lasso2 <- lm(MonthlyIncome ~ TotalWorkingYears+ JobRole+JobLevel + TotalWorkingYears:BusinessTravel + TotalWorkingYears:JobRole + YearsAtCompany:JobRole + Department:JobRole, data=train)
+
 #check residuals and summary
 plot(lm.lasso)
 summary(lm.lasso)
+plot(lm.lasso2)
+summary(lm.lasso2)
 
 #prediction error
 preds.lm.lasso <- predict(lm.lasso, test)
-print("RMSE:")
+print("RMSE lasso 1:")
 RMSE(preds.lm.lasso, test$MonthlyIncome)
+
+preds.lm.lasso2 <- predict(lm.lasso2, test)
+print("RMSE lasso 2:")
+RMSE(preds.lm.lasso2, test$MonthlyIncome)
+
 ```
 
-Forward step model
+Forward step model choosing from all variables plus interactions of manually selected variables
 ```{r}
 #make train test split
 folds <- createFolds(employees$ID, k=2)
@@ -688,8 +754,25 @@ print("RMSE:")
 RMSE(preds.lm.forward, test$MonthlyIncome)
 ```
 
-EDA for KNN for income
-LR EDA
+### Model coefficients and interpretation
+
+The final picked linear regression model has the following coefficients. The coefficients can be interpreted as (here are a few examples; the rest would follow the same format):
+
+* Intercept: For a person who has 0 working years, is a healthcare representative, 0 years at the company, and is in the Human Resources department, this person would have a salary of -$1378 per month. This is, of course, not a very realistic scenario.
+* TotalWorkingYears: We will ignore this coefficient because we have an interaction term involving TotalWorkingYears
+* JobRoleHumanResources: On average, a person in the human resources job role makes $863 more than a healthcare representative per month, all else being equal.
+* TotalWorkingYears:BusinessTravelTravel_Frequently : On average, a person who travels frequently will make $37 less per total year of work than a person who does not travel for work, all else being equal
+
+```{r}
+#show the coefficients of the favorite linear regression model
+lm.forward
+```
+
+### Predict Monthly Income -- KNN Regression
+
+#### EDA for KNN
+
+Since KNN is about looking like your nearest neightbors, I will do some additional exploratory plots to see what factors make similar neighbors with each other in regards to income. It looks like Total Working Years split up by Job Level give some of the best separation between income levels. The Principal Components also give some amount of distinction but are still quite muddled.
 
 ```{r EDALR}
 
@@ -740,7 +823,15 @@ LR EDA
    geom_point()
 ```
 
-KNN regression
+### KNN regression
+
+I run KNN a few different times--one with everything, one with a few manually selected models, one with just JobLevel and TotalWorkingYears, and one with principal components. The one with just JobLevel and TotalWorkingYears is the best here, but all of these KNN models are a long shot from the linear regression models!
+
+Everything RMSE: 7701
+Manual RMSE: 7677
+JobLevel TotalWorkingYears RMSE: 7675
+PCs RMSE: 7685
+
 ```{r}
 employees_z2 <- employees_z %>%
   mutate(MonthlyIncome = employees_num$MonthlyIncome) %>%
@@ -772,7 +863,7 @@ print("RMSE:")
 RMSE(preds.knn, test$MonthlyIncome)
 #not bad
 
-##run knn with even fewer manually selected variables
+##run knn with only Job Level and TotalWorkingYears
 preds.knn <- knn(train[, c("zJobLevel", "zTotalWorkingYears")], test[, c("zJobLevel", "zTotalWorkingYears")], cl=train$MonthlyIncome, k=10)
 preds.knn <- as.numeric(preds.knn)
 plot(x=preds.knn, y=test$MonthlyIncome)
@@ -787,4 +878,33 @@ plot(x=preds.knn, y=test$MonthlyIncome)
 print("RMSE:")
 RMSE(preds.knn, test$MonthlyIncome)
 ```
+
+### Conclusion of Salary Model
+Linear Regression with interaction terms wins as a predictive model of income, with the lowest RMSE of 999. The model formula is:
+
+MonthlyIncome ~ JobLevel + JobRole + TotalWorkingYears + BusinessTravel + 
+    DailyRate + Gender + ID + MonthlyRate + Department + JobRole:TotalWorkingYears + 
+    TotalWorkingYears:BusinessTravel
+
+Overall, the linear regression fit much better than the KNN algorithm for predicting income.
+
+## Overall Conclusion
+
+We went over analysis of job role trends, made a model for predicting attrition, and made a model for predicting income.
+
+Highlights of our job role trends analysis:
+
+* Income is highly distinguishable between the job roles
+* Job roles reflect the education field background of the people in them
+
+Highlights of our attrition model:
+
+* Random Forest worked better than Naive Bayes which worked better than KNN
+* Factors that are strongly telling about attrition are Job Involvement, Overtime, and Job Role
+
+Highlights of our income model:
+
+* Linear Regression worked better than KNN
+* Interaction terms were quite useful
+* Total working years and Job Level were good predictors for income
 
