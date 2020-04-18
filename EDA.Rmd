@@ -20,6 +20,8 @@ str(employees)
 colSums(is.na(employees))
 summary(employees$MonthlyIncome)
 summary(employees$Attrition)
+#useless variable with one value across the whole thing
+employees$Over18 <- NULL
 
 ```
 
@@ -62,23 +64,72 @@ employees$WorkLifeBalance[which(employees$WorkLifeBalance == 4)] = 'Best'
 employees$WorkLifeBalance = as.factor(employees$WorkLifeBalance)
 summary(employees$WorkLifeBalance)
 
+employees$Education[which(employees$Education == 1)] = 'Below College'
+employees$Education[which(employees$Education == 2)] = 'College'
+employees$Education[which(employees$Education == 3)] = 'Bachelor'
+employees$Education[which(employees$Education == 4)] = 'Master'
+employees$Education[which(employees$Education == 5)] = 'Doctor'
+employees$Education = as.factor(employees$Education)
+summary(employees$WorkLifeBalance)
+
+employees$EnvironmentSatisfaction[which(employees$EnvironmentSatisfaction == 1)] = 'Low'
+employees$EnvironmentSatisfaction[which(employees$EnvironmentSatisfaction == 2)] = 'Medium'
+employees$EnvironmentSatisfaction[which(employees$EnvironmentSatisfaction == 3)] = 'High'
+employees$EnvironmentSatisfaction[which(employees$EnvironmentSatisfaction == 4)] = 'Very High'
+employees$EnvironmentSatisfaction = as.factor(employees$EnvironmentSatisfaction)
+summary(employees$EnvironmentSatisfaction)
+
+employees$StockOptionLevel = factor(employees$StockOptionLevel)
+summary(employees$StockOptionLevel)
 ```
 
 
-Highest job satisfaction vs education fields
+Highest job satisfaction vs job role
 ```{r jobsatisfaction}
 library(ggmosaic)
 
 ggplot(data = employees) +
-   geom_mosaic(aes(x = product(JobSatisfaction, EducationField), fill=EducationField), na.rm=TRUE) + labs(x = "Education Field", title='f(JobSatisfaction | Education Field)', y='Job Satisfaction')
+   geom_mosaic(aes(x = product(JobSatisfaction, JobRole), fill=JobRole), na.rm=TRUE) + labs(x = "Job Role", title='Job Satisfaction in Job Roles', y='Job Satisfaction')+
+theme(axis.text.x = element_text(angle = 90))
 
 #Chi square says no significant difference in job satisfaction across education fields
-table(employees$JobSatisfaction, employees$EducationField)
-chisq.test(table(employees$JobSatisfaction, employees$EducationField))
+table(employees$JobSatisfaction, employees$JobRole)
+chisq.test(table(employees$JobSatisfaction, employees$JobRole))
 
 ```
+job role vs education field: Those who got Marketing or Human Resources degrees were all either in HR, management, or sales; all the research-related jobs had science, medical, technical, or other degree.
+```{r}
+ggplot(data = employees) +
+   geom_mosaic(aes(x = product(EducationField, JobRole), fill=EducationField), na.rm=TRUE) + labs(y = "Education Field", title='Education Field of Job Roles', x='Job Role') +
+theme(axis.text.x = element_text(angle = 90))
+```
 
-What continuous variables have a difference in distribution of the response?
+income job role: HR, lab technician, research scientist, and sales representatives make the least money. Managers and Research directors make the most money. Healthcare representatives, Manufacturing directors, and sales executives make in the middle.
+```{r}
+ggplot(data = employees, aes(x=JobRole, y=MonthlyIncome, fill=JobRole)) +
+  geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 90)) +
+  ggtitle("Incomes of Job Roles")
+```
+
+Working years vs job roles: Sales represntative and HR seem to be the most entry-level type job, whereas manager and director have generally been working a longer time than those in other roles.
+```{r}
+ggplot(data = employees, aes(x=JobRole, y=TotalWorkingYears, fill=JobRole)) +
+  geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 90)) +
+  ggtitle("How Long People of Job Roles Have Worked")
+```
+
+JobInvolvement of job roles: All the job roles have the same level of job involvement, at least according to this data.
+
+```{r}
+ggplot(data = employees) +
+   geom_mosaic(aes(x = product(factor(JobInvolvement), JobRole), fill=factor(JobInvolvement)), na.rm=TRUE) + labs(y = "Job Involvement", title='Involvment of Job Roles', x='Job Role') +
+theme(axis.text.x = element_text(angle = 90))
+```
+
+
+What continuous variables have a difference in distribution of attrition?
 pairs plots continuous
 
 ```{r, message=FALSE}
@@ -356,14 +407,6 @@ pairs plots continuous
 ```{r, message=FALSE}
 library(GGally)
 
-employees <- read.csv("CaseStudy2-data.csv")
-employees$Over18 <- NULL
-
-#there's 22 numeric variables
-employees %>%
-  select_if(is.numeric) %>%
-  dim()
-
 employees %>%
   ggplot(aes(x=MonthlyIncome)) +
   geom_histogram()
@@ -409,24 +452,132 @@ employees %>%
   ggtitle("Pairs Plot")
 ```
 
-```{r}
-employees$logMonthlyIncome = log(employees$MonthlyIncome)
+What categorical variables have a difference in distribution in response?
+```{r, message=FALSE}
 
-model.lm <- lm(MonthlyIncome ~ ., data=employees)
-plot(model.lm)
+#there's 16 categorical variables
+employees %>%
+  select_if(is.factor) %>%
+  dim()
+
+categs <- names(select_if(employees, is.factor))
+
+for(i in 1:length(categs)){
+  print(employees %>%
+    ggplot(aes(x = eval(parse(text=categs[i])), y=MonthlyIncome)) +
+    geom_boxplot() +
+    xlab(categs[i])
+  )
+}
+
 ```
 
-
-Predicting Salary -- linear Regression
+Make train test split
 ```{r}
+folds <- createFolds(employees$ID, k=2)
+train <- employees[folds$Fold1,]
+test <- employees[folds$Fold2,]
 
-model.lm <- lm(logMonthlyIncome ~ ., data=employees)
-plot(model.lm)
+```
 
-model.lm2 <- lm(MonthlyIncome~JobLevel*TotalWorkingYears, data=employees)
-plot(model.lm2)
+manually selected variables based on EDA plots
+```{r}
+#make train test split
+folds <- createFolds(employees$ID, k=2)
+train <- employees[folds$Fold1,]
+test <- employees[folds$Fold2,]
 
+#fit the manual model
+lm.manual <- lm(MonthlyIncome ~ Age + EmployeeNumber + NumCompaniesWorked +
+                  TotalWorkingYears + YearsAtCompany + YearsInCurrentRole + YearsSinceLastPromotion + Attrition + BusinessTravel + Department + Education + EducationField + JobRole +  StockOptionLevel, data=train)
 
+#check residuals and summary
+plot(lm.manual)
+summary(lm.manual)
+
+#prediction error
+preds.lm.manual <- predict(lm.manual, test)
+print("RMSE:")
+RMSE(preds.lm.manual, test$MonthlyIncome)
+```
+
+full model
+```{r}
+#make train test split
+folds <- createFolds(employees$ID, k=2)
+train <- employees[folds$Fold1,]
+test <- employees[folds$Fold2,]
+
+#fit the model
+lm.full <- lm(MonthlyIncome ~ ., data=train)
+
+#check residuals and summary
+plot(lm.full)
+summary(lm.full)
+
+#prediction error
+preds.lm.full <- predict(lm.full, test)
+print("RMSE:")
+RMSE(preds.lm.full, test$MonthlyIncome)
+```
+
+LASSO
+```{r}
+library(glmnet)
+
+#make train test split
+folds <- createFolds(employees$ID, k=2)
+train <- employees[folds$Fold1,]
+test <- employees[folds$Fold2,]
+
+#find the lasso variable choices
+x_vars <- model.matrix(MonthlyIncome~. , employees)[,-1]
+cvfit <- cv.glmnet(x_vars, employees$MonthlyIncome)
+coef(cvfit, s = "lambda.1se")
+
+#fit the model
+lm.lasso <- lm(MonthlyIncome ~ Attrition+BusinessTravel+ DistanceFromHome + Education + EmployeeNumber + EnvironmentSatisfaction + Gender + JobLevel + JobRole + MonthlyRate + RelationshipSatisfaction+ TotalWorkingYears + YearsInCurrentRole + YearsSinceLastPromotion + YearsWithCurrManager, data=train)
+
+#check residuals and summary
+plot(lm.lasso)
+summary(lm.lasso)
+
+#prediction error
+preds.lm.lasso <- predict(lm.lasso, test)
+print("RMSE:")
+RMSE(preds.lm.lasso, test$MonthlyIncome)
+```
+
+Forward step model
+```{r}
+#make train test split
+folds <- createFolds(employees$ID, k=2)
+train <- employees[folds$Fold1,]
+test <- employees[folds$Fold2,]
+
+#find the forward selection variables
+model.null<-lm(MonthlyIncome ~ 1, data=employees)
+model.complex <- lm(MonthlyIncome ~ (Age + EmployeeNumber + NumCompaniesWorked +
+                  TotalWorkingYears + YearsAtCompany + YearsInCurrentRole + YearsSinceLastPromotion + Attrition + BusinessTravel + Department + Education + EducationField + JobRole +  StockOptionLevel)^2 + ., data=train)
+model.forward <- step(model.null,
+                   scope = list(upper=model.complex),
+                   direction="forward",
+                   data=employees)
+coef(model.forward)
+
+#fit the model
+lm.forward <- lm(MonthlyIncome ~ JobLevel + JobRole + TotalWorkingYears + BusinessTravel + 
+    DailyRate + Gender + ID + MonthlyRate + Department + JobRole:TotalWorkingYears + 
+    TotalWorkingYears:BusinessTravel, data=train)
+
+#check residuals and summary
+summary(lm.forward)
+plot(lm.forward)
+
+#prediction error
+preds.lm.forward <- predict(lm.forward, test)
+print("RMSE:")
+RMSE(preds.lm.forward, test$MonthlyIncome)
 ```
 
 LR EDA
@@ -482,5 +633,33 @@ employees %>%
 ggplot(aes(x=JobLevel, y=PC2, colour=IncomeBins)) +
   geom_point()
        
+```
+
+KNN regression
+```{r}
+
+#add categorical variables 
+employees_num <- read.csv("CaseStudy2-data.csv")
+
+employees_num$BusinessTravel = as.numeric(employees_num$BusinessTravel)
+employees_num$Department = as.numeric(employees_num$Department)
+employees_num$EducationField = as.numeric(employees_num$EducationField)
+employees_num$Gender = as.numeric(employees_num$Gender)
+employees_num$JobRole = as.numeric(employees_num$JobRole)
+employees_num$MaritalStatus = as.numeric(employees_num$MaritalStatus)
+employees_num$OverTime = as.numeric(employees_num$OverTime)
+employees_num$Attrition = as.numeric(employees_num$Attrition)
+employees_num <- employees_num %>%
+  select_if(is.numeric)
+
+folds <- createFolds(employees_num$ID, k=2)
+train <- employees_num[folds$Fold1,]
+test <- employees_num[folds$Fold2,]
+
+##run knn k=18 and make ROC
+preds.knn <- knn(train[, names(train) != "MonthlyIncome"], test[, names(train) != "MonthlyIncome"], cl=as.factor(train$MonthlyIncome), k=10)
+preds.knn <- as.numeric(preds.knn)
+plot(x=preds.knn, y=test$MonthlyIncome)
+
 ```
 
