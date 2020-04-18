@@ -634,7 +634,7 @@ for(i in 1:length(categs)){
 To model income, we will first try to use linear regression. I try a number of linear regression models shown below--a manual model, a full model with everything, a LASSO selected model without interaction terms, a LASSO selected model with interaction terms, and a forward-selection model including interaction terms. The one with lowest RMSE is as selected by forward selection, and its formula is: 
 
 MonthlyIncome ~ JobLevel + JobRole + TotalWorkingYears + BusinessTravel + 
-    DailyRate + Gender + ID + MonthlyRate + Department + JobRole:TotalWorkingYears + 
+    DailyRate + Gender + MonthlyRate + Department + JobRole:TotalWorkingYears + 
     TotalWorkingYears:BusinessTravel
     
 * Manual RMSE: 1691
@@ -741,7 +741,7 @@ coef(model.forward)
 
 #fit the model
 lm.forward <- lm(MonthlyIncome ~ JobLevel + JobRole + TotalWorkingYears + BusinessTravel + 
-    DailyRate + Gender + ID + MonthlyRate + Department + JobRole:TotalWorkingYears + 
+    DailyRate + Gender + MonthlyRate + Department + JobRole:TotalWorkingYears + 
     TotalWorkingYears:BusinessTravel, data=train)
 
 #check residuals and summary
@@ -827,10 +827,10 @@ Since KNN is about looking like your nearest neightbors, I will do some addition
 
 I run KNN a few different times--one with everything, one with a few manually selected models, one with just JobLevel and TotalWorkingYears, and one with principal components. The one with just JobLevel and TotalWorkingYears is the best here, but all of these KNN models are a long shot from the linear regression models!
 
-Everything RMSE: 7701
-Manual RMSE: 7677
-JobLevel TotalWorkingYears RMSE: 7675
-PCs RMSE: 7685
+* Everything RMSE: 7701
+* Manual RMSE: 7677
+* JobLevel TotalWorkingYears RMSE: 7675
+* PCs RMSE: 7685
 
 ```{r}
 employees_z2 <- employees_z %>%
@@ -850,7 +850,7 @@ test <- employees_z2[folds$Fold2,]
 ##run knn with everything
 preds.knn <- knn(train[, names(train) != "MonthlyIncome"], test[, names(train) != "MonthlyIncome"], cl=train$MonthlyIncome, k=10)
 preds.knn <- as.numeric(preds.knn)
-plot(x=preds.knn, y=test$MonthlyIncome)
+plot(x=preds.knn, y=test$MonthlyIncome, main = "Prediction vs Actual of KNN with all predictors")
 #gross
 print("RMSE:")
 RMSE(preds.knn, test$MonthlyIncome)
@@ -858,7 +858,7 @@ RMSE(preds.knn, test$MonthlyIncome)
 ##run knn with just a few manually selected variables
 preds.knn <- knn(train[, c("zJobRole", "zJobLevel", "zTotalWorkingYears")], test[, c("zJobRole", "zJobLevel", "zTotalWorkingYears")], cl=train$MonthlyIncome, k=10)
 preds.knn <- as.numeric(preds.knn)
-plot(x=preds.knn, y=test$MonthlyIncome)
+plot(x=preds.knn, y=test$MonthlyIncome, main = "Prediction vs Actual of KNN with manually selected predictors")
 print("RMSE:")
 RMSE(preds.knn, test$MonthlyIncome)
 #not bad
@@ -866,7 +866,7 @@ RMSE(preds.knn, test$MonthlyIncome)
 ##run knn with only Job Level and TotalWorkingYears
 preds.knn <- knn(train[, c("zJobLevel", "zTotalWorkingYears")], test[, c("zJobLevel", "zTotalWorkingYears")], cl=train$MonthlyIncome, k=10)
 preds.knn <- as.numeric(preds.knn)
-plot(x=preds.knn, y=test$MonthlyIncome)
+plot(x=preds.knn, y=test$MonthlyIncome, main = "Prediction vs Actual of KNN JobLevel and TotalWorkingYears")
 print("RMSE:")
 RMSE(preds.knn, test$MonthlyIncome)
 #not bad
@@ -874,7 +874,7 @@ RMSE(preds.knn, test$MonthlyIncome)
 ##run knn with PCs
 preds.knn <- knn(train[, c("zJobRole", "zJobLevel", "PC1", "PC2", "PC3")], test[, c("zJobRole", "zJobLevel", "PC1", "PC2", "PC3")], cl=train$MonthlyIncome, k=10)
 preds.knn <- as.numeric(preds.knn)
-plot(x=preds.knn, y=test$MonthlyIncome)
+plot(x=preds.knn, y=test$MonthlyIncome, main = "Prediction vs Actual of KNN with Principal Components")
 print("RMSE:")
 RMSE(preds.knn, test$MonthlyIncome)
 ```
@@ -883,8 +883,9 @@ RMSE(preds.knn, test$MonthlyIncome)
 Linear Regression with interaction terms wins as a predictive model of income, with the lowest RMSE of 999. The model formula is:
 
 MonthlyIncome ~ JobLevel + JobRole + TotalWorkingYears + BusinessTravel + 
-    DailyRate + Gender + ID + MonthlyRate + Department + JobRole:TotalWorkingYears + 
+    DailyRate + Gender + MonthlyRate + Department + JobRole:TotalWorkingYears + 
     TotalWorkingYears:BusinessTravel
+  
 
 Overall, the linear regression fit much better than the KNN algorithm for predicting income.
 
