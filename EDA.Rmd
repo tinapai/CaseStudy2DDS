@@ -620,27 +620,24 @@ RMSE(preds.lm.forward, test$MonthlyIncome)
 
 KNN regression
 ```{r}
+employees_z2 <- employees_z %>%
+  mutate(MonthlyIncome = employees_num$MonthlyIncome) %>%
+  mutate(zAttrition = scale(as.numeric(Attrition)))
+employees_z2$Attrition <- NULL
+employees_z2$zMonthlyIncome <- NULL
+  
+#train test split
+folds <- createFolds(employees_z2$MonthlyIncome, k=2)
+train <- employees_z2[folds$Fold1,]
+test <- employees_z2[folds$Fold2,]
 
-#add categorical variables 
-employees_num <- read.csv("CaseStudy2-data.csv")
+##run knn
+preds.knn <- knn(train[, names(train) != "MonthlyIncome"], test[, names(train) != "MonthlyIncome"], cl=train$MonthlyIncome, k=10)
+preds.knn <- as.numeric(preds.knn)
+plot(x=preds.knn, y=test$MonthlyIncome)
 
-employees_num$BusinessTravel = as.numeric(employees_num$BusinessTravel)
-employees_num$Department = as.numeric(employees_num$Department)
-employees_num$EducationField = as.numeric(employees_num$EducationField)
-employees_num$Gender = as.numeric(employees_num$Gender)
-employees_num$JobRole = as.numeric(employees_num$JobRole)
-employees_num$MaritalStatus = as.numeric(employees_num$MaritalStatus)
-employees_num$OverTime = as.numeric(employees_num$OverTime)
-employees_num$Attrition = as.numeric(employees_num$Attrition)
-employees_num <- employees_num %>%
-  select_if(is.numeric)
-
-folds <- createFolds(employees_num$ID, k=2)
-train <- employees_num[folds$Fold1,]
-test <- employees_num[folds$Fold2,]
-
-##run knn k=18 and make ROC
-preds.knn <- knn(train[, names(train) != "MonthlyIncome"], test[, names(train) != "MonthlyIncome"], cl=as.factor(train$MonthlyIncome), k=10)
+##run knn with just a few manually selected variables
+preds.knn <- knn(train[, names(train) != "MonthlyIncome"], test[, names(train) != "MonthlyIncome"], cl=train$MonthlyIncome, k=10)
 preds.knn <- as.numeric(preds.knn)
 plot(x=preds.knn, y=test$MonthlyIncome)
 
