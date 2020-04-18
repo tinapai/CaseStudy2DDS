@@ -5,19 +5,35 @@ date: "4/13/2020"
 output: html_document
 ---
 
+## Introduction
+
+This is an analysis of employee data. We will:
+1) Explore trends and insights about job roles
+2) Determine what are the most influential factors in attrition
+3) Make a model of attrition
+4) Make a model of income
+
 ```{r setup, include=FALSE}
 library(tidyverse)
 
-
-
 ```
 
-## EDA
-```{r}
-employees <- read.csv("CaseStudy2-data.csv")
+## Data Overview and Cleaning
 
+An overview of the basic lay of the land of this data shows that:
+
+* There is a mix of categorical, ordinal, and continuous variables
+* There are no missing values
+* The variable Over18 is useless--it is just the same value for all people, and as long as we assume there is a rule that all people who work at the company are over 18, this variable will not change
+
+```{r data}
+#read in data
+employees <- read.csv("CaseStudy2-data.csv")
+#overview of the variables
 str(employees)
+#how many NA values
 colSums(is.na(employees))
+#summaries of monthly income and attrition, the variables of interest for our models
 summary(employees$MonthlyIncome)
 summary(employees$Attrition)
 #useless variable with one value across the whole thing
@@ -26,9 +42,10 @@ employees$Over18 <- NULL
 ```
 
 
-Are any ordinal variables going in as continuous right now?
-yes
+Because some ordinal variables going in as continuous right now, we will turn them into factors so that they will be treated as factors. I name the factor levels for the ones that I know their meaning.
+
 ```{r}
+#Job involvement
 employees$JobInvolvement[which(employees$JobInvolvement == 1)] = 'Low'
 employees$JobInvolvement[which(employees$JobInvolvement == 2)] = 'Medium'
 employees$JobInvolvement[which(employees$JobInvolvement == 3)] = 'High'
@@ -36,6 +53,7 @@ employees$JobInvolvement[which(employees$JobInvolvement == 4)] = 'Very High'
 employees$JobInvolvement = as.factor(employees$JobInvolvement)
 summary(employees$JobInvolvement)
 
+#Job satisfaction
 employees$JobSatisfaction[which(employees$JobSatisfaction == 1)] = 'Low'
 employees$JobSatisfaction[which(employees$JobSatisfaction == 2)] = 'Medium'
 employees$JobSatisfaction[which(employees$JobSatisfaction == 3)] = 'High'
@@ -43,6 +61,7 @@ employees$JobSatisfaction[which(employees$JobSatisfaction == 4)] = 'Very High'
 employees$JobSatisfaction = as.factor(employees$JobSatisfaction)
 summary(employees$JobSatisfaction)
 
+#Performance rating
 employees$PerformanceRating[which(employees$PerformanceRating == 1)] = 'Low'
 employees$PerformanceRating[which(employees$PerformanceRating == 2)] = 'Good'
 employees$PerformanceRating[which(employees$PerformanceRating == 3)] = 'Excellent'
@@ -50,6 +69,7 @@ employees$PerformanceRating[which(employees$PerformanceRating == 4)] = 'Outstand
 employees$PerformanceRating = as.factor(employees$PerformanceRating)
 summary(employees$PerformanceRating)
 
+#Relationship status
 employees$RelationshipSatisfaction[which(employees$RelationshipSatisfaction == 1)] = 'Low'
 employees$RelationshipSatisfaction[which(employees$RelationshipSatisfaction == 2)] = 'Medium'
 employees$RelationshipSatisfaction[which(employees$RelationshipSatisfaction == 3)] = 'High'
@@ -57,6 +77,7 @@ employees$RelationshipSatisfaction[which(employees$RelationshipSatisfaction == 4
 employees$RelationshipSatisfaction = as.factor(employees$RelationshipSatisfaction)
 summary(employees$RelationshipSatisfaction)
 
+#Work life balance
 employees$WorkLifeBalance[which(employees$WorkLifeBalance == 1)] = 'Bad'
 employees$WorkLifeBalance[which(employees$WorkLifeBalance == 2)] = 'Good'
 employees$WorkLifeBalance[which(employees$WorkLifeBalance == 3)] = 'Better'
@@ -64,6 +85,7 @@ employees$WorkLifeBalance[which(employees$WorkLifeBalance == 4)] = 'Best'
 employees$WorkLifeBalance = as.factor(employees$WorkLifeBalance)
 summary(employees$WorkLifeBalance)
 
+#Education
 employees$Education[which(employees$Education == 1)] = 'Below College'
 employees$Education[which(employees$Education == 2)] = 'College'
 employees$Education[which(employees$Education == 3)] = 'Bachelor'
@@ -72,6 +94,7 @@ employees$Education[which(employees$Education == 5)] = 'Doctor'
 employees$Education = as.factor(employees$Education)
 summary(employees$WorkLifeBalance)
 
+#Environment satisfaction
 employees$EnvironmentSatisfaction[which(employees$EnvironmentSatisfaction == 1)] = 'Low'
 employees$EnvironmentSatisfaction[which(employees$EnvironmentSatisfaction == 2)] = 'Medium'
 employees$EnvironmentSatisfaction[which(employees$EnvironmentSatisfaction == 3)] = 'High'
@@ -79,12 +102,16 @@ employees$EnvironmentSatisfaction[which(employees$EnvironmentSatisfaction == 4)]
 employees$EnvironmentSatisfaction = as.factor(employees$EnvironmentSatisfaction)
 summary(employees$EnvironmentSatisfaction)
 
+#Stock option level
 employees$StockOptionLevel = factor(employees$StockOptionLevel)
 summary(employees$StockOptionLevel)
 ```
 
+## Exploring Job Role Insights
 
-Highest job satisfaction vs job role
+#### Job Satisfaction
+According to this data, job satisfaction does not vary significantly from role to role. The mosaic plot and contingincy table show some variation, but the Chi Square test reveals that the variation in our dataset are not significant enough to conclude that different roles tend to have more or less job satisfaction than others (p value = .35)
+
 ```{r jobsatisfaction}
 library(ggmosaic)
 
@@ -92,50 +119,81 @@ ggplot(data = employees) +
    geom_mosaic(aes(x = product(JobSatisfaction, JobRole), fill=JobRole), na.rm=TRUE) + labs(x = "Job Role", title='Job Satisfaction in Job Roles', y='Job Satisfaction')+
 theme(axis.text.x = element_text(angle = 90))
 
-#Chi square says no significant difference in job satisfaction across education fields
+#Contingency table
 table(employees$JobSatisfaction, employees$JobRole)
+
+#Chi square says no significant difference in job satisfaction across education fields
 chisq.test(table(employees$JobSatisfaction, employees$JobRole))
 
 ```
-job role vs education field: Those who got Marketing or Human Resources degrees were all either in HR, management, or sales; all the research-related jobs had science, medical, technical, or other degree.
+
+#### Education field background of people in job roles: 
+
+We can see that, as expected, people in more technical roles come from different backgrounds than people in less technical roles:
+
+* Those who got Marketing or Human Resources degrees were all either in HR, management, or sales
+* All the people in research-related jobs had science, medical, technical, or other degrees.
+
 ```{r}
 ggplot(data = employees) +
    geom_mosaic(aes(x = product(EducationField, JobRole), fill=EducationField), na.rm=TRUE) + labs(y = "Education Field", title='Education Field of Job Roles', x='Job Role') +
 theme(axis.text.x = element_text(angle = 90))
 ```
 
-income job role: HR, lab technician, research scientist, and sales representatives make the least money. Managers and Research directors make the most money. Healthcare representatives, Manufacturing directors, and sales executives make in the middle.
+#### Income of job roles: 
+
+Clearly, the income of these job roles are very different from each other (p < 2e-16 from one-way ANOVA test). This will come in handy when we make our salary prediction model later.
+
+* HR, lab technician, research scientist, and sales representatives make the least money.
+* Managers and Research directors make the most money.
+* Healthcare representatives, Manufacturing directors, and sales executives make in the middle.
+
 ```{r}
 ggplot(data = employees, aes(x=JobRole, y=MonthlyIncome, fill=JobRole)) +
   geom_boxplot() +
   theme(axis.text.x = element_text(angle = 90)) +
   ggtitle("Incomes of Job Roles")
+
+#ANOVA of income differences across job roles
+summary(aov(MonthlyIncome ~ JobRole, data = employees))
 ```
 
-Working years vs job roles: Sales represntative and HR seem to be the most entry-level type job, whereas manager and director have generally been working a longer time than those in other roles.
+#### Working years vs job roles:
+
+There is a difference across the job roles regarding how long people of these roles have been in the work force (p < 2e-16 from one-way ANOVA test). Sales represntative and HR seem to be the most entry-level type job, whereas manager and director have generally been working a longer time than those in other roles.
+
 ```{r}
 ggplot(data = employees, aes(x=JobRole, y=TotalWorkingYears, fill=JobRole)) +
   geom_boxplot() +
   theme(axis.text.x = element_text(angle = 90)) +
   ggtitle("How Long People of Job Roles Have Worked")
+
+#ANOVA of total working years compared across job roles
+summary(aov(TotalWorkingYears ~ JobRole, data = employees))
 ```
 
-JobInvolvement of job roles: All the job roles have the same level of job involvement, at least according to this data.
+#### JobInvolvement of job roles: 
+
+All the job roles are similar in their distribution of amount of job involvement, at least according to this data (p = .62 from Chi Square test). We don't have insight as to what the definitions of these job involvement level break outs are, so it is hard to interpret this deeply.
 
 ```{r}
 ggplot(data = employees) +
-   geom_mosaic(aes(x = product(factor(JobInvolvement), JobRole), fill=factor(JobInvolvement)), na.rm=TRUE) + labs(y = "Job Involvement", title='Involvment of Job Roles', x='Job Role') +
+   geom_mosaic(aes(x = product(factor(JobInvolvement), JobRole), fill=JobInvolvement), na.rm=TRUE) + labs(y = "Job Involvement", title='Involvment of Job Roles', x='Job Role') +
 theme(axis.text.x = element_text(angle = 90))
+
+#Chi square says no significant difference in job satisfaction across education fields
+chisq.test(table(employees$JobInvolvement, employees$JobRole))
+
 ```
 
+## Exploratory Analysis for Attrition
 
-What continuous variables have a difference in distribution of attrition?
-pairs plots continuous
+What continuous variables have a difference in distribution of attrition? It looks like from these paired scatterplots that attrition is pretty scattered across our continuous variables and none of them show very distinct clusters of attrition. Years at company and years in current role seem, if anything, to show mildly that people who have been at the company past a certain number of years are less likely to leave.
 
-```{r, message=FALSE}
+```{r EDAAttrition, message=FALSE}
 library(GGally)
 
-#there's 22 continuous variables
+#there's 19 continuous variables
 employees %>%
   select_if(is.numeric) %>%
   dim()
@@ -158,7 +216,7 @@ employees %>%
 
 employees %>%
   select_if(is.numeric) %>%
-  select(11:16) %>%
+  select(11:15) %>%
   mutate(Attrition = employees$Attrition) %>%
   sample_n(200) %>%
   ggpairs(aes(colour = Attrition)) + 
@@ -166,15 +224,25 @@ employees %>%
 
 employees %>%
   select_if(is.numeric) %>%
-  select(17:22) %>%
+  select(16:19) %>%
   mutate(Attrition = employees$Attrition) %>%
   sample_n(200) %>%
   ggpairs(aes(colour = Attrition)) + 
   ggtitle("Pairs Plot")
-
 ```
 
-Check for multicollinearity between continuous variables
+Taking a closer look at years in current role to compare attrition, we see that those who left the company stayed generally between 0 - 4 years, whereas those who did not leave tend to have been in the company between 2 - 7 years. A t-test shows the p-value for there being a difference in mean of those who left vs those who did not is p=1.522e-6, which is is strong evidence that there is a difference in means of those two populations.
+
+```{r}
+t.test(YearsInCurrentRole ~ Attrition, data=employees,)
+employees %>%
+  ggplot(aes(x=Attrition, y=YearsInCurrentRole)) +
+  geom_boxplot() +
+  ggtitle("Years In Current Role by Attrition")
+```
+
+A check of the correlation matrix shows there is some multicollinearity between continuous variables, particularly the variables related to the number of years of being in a position or at a company.
+
 ```{r}
 
 library(corrplot)
@@ -187,7 +255,15 @@ corrplot(M, method = "circle")
 ```
 
 
-What categorical variables have a difference in distribution in response?
+What categorical variables have a difference in distribution in response? Many of them do! Particularly noticeably, those who are likely to leave are:
+
+* those with low job involvement
+* sales representatives
+* single people
+* those working overtime
+* those with bad work life balance
+
+
 ```{r, message=FALSE}
 
 #there's 14 categorical variables
@@ -201,7 +277,8 @@ for(i in 1:length(categs)){
   print(employees %>%
     ggplot(aes(x = eval(parse(text=categs[i])), fill = Attrition)) +
     geom_bar(position = "fill") +
-    xlab(categs[i])
+    xlab(categs[i]) + 
+    ggtitle(paste("Proportion of Attrition by ", categs[i]))
   )
 }
 
@@ -475,19 +552,12 @@ employees %>%
 
 employees %>%
   select_if(is.numeric) %>%
-  select(16:20) %>%
+  select(16:19) %>%
   mutate(MonthlyIncome = employees$MonthlyIncome) %>%
   sample_n(200) %>%
   ggpairs() + 
   ggtitle("Pairs Plot")
 
-employees %>%
-  select_if(is.numeric) %>%
-  select(21:27) %>%
-  mutate(MonthlyIncome = employees$MonthlyIncome) %>%
-  sample_n(200) %>%
-  ggpairs() + 
-  ggtitle("Pairs Plot")
 ```
 
 What categorical variables have a difference in distribution in response?
