@@ -1,0 +1,486 @@
+---
+title: "EDA"
+author: "Tina Pai"
+date: "4/13/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+
+
+
+```
+
+## EDA
+```{r}
+employees <- read.csv("CaseStudy2-data.csv")
+
+str(employees)
+colSums(is.na(employees))
+summary(employees$MonthlyIncome)
+summary(employees$Attrition)
+
+```
+
+
+Are any ordinal variables going in as continuous right now?
+yes
+```{r}
+employees$JobInvolvement[which(employees$JobInvolvement == 1)] = 'Low'
+employees$JobInvolvement[which(employees$JobInvolvement == 2)] = 'Medium'
+employees$JobInvolvement[which(employees$JobInvolvement == 3)] = 'High'
+employees$JobInvolvement[which(employees$JobInvolvement == 4)] = 'Very High'
+employees$JobInvolvement = as.factor(employees$JobInvolvement)
+summary(employees$JobInvolvement)
+
+employees$JobSatisfaction[which(employees$JobSatisfaction == 1)] = 'Low'
+employees$JobSatisfaction[which(employees$JobSatisfaction == 2)] = 'Medium'
+employees$JobSatisfaction[which(employees$JobSatisfaction == 3)] = 'High'
+employees$JobSatisfaction[which(employees$JobSatisfaction == 4)] = 'Very High'
+employees$JobSatisfaction = as.factor(employees$JobSatisfaction)
+summary(employees$JobSatisfaction)
+
+employees$PerformanceRating[which(employees$PerformanceRating == 1)] = 'Low'
+employees$PerformanceRating[which(employees$PerformanceRating == 2)] = 'Good'
+employees$PerformanceRating[which(employees$PerformanceRating == 3)] = 'Excellent'
+employees$PerformanceRating[which(employees$PerformanceRating == 4)] = 'Outstanding'
+employees$PerformanceRating = as.factor(employees$PerformanceRating)
+summary(employees$PerformanceRating)
+
+employees$RelationshipSatisfaction[which(employees$RelationshipSatisfaction == 1)] = 'Low'
+employees$RelationshipSatisfaction[which(employees$RelationshipSatisfaction == 2)] = 'Medium'
+employees$RelationshipSatisfaction[which(employees$RelationshipSatisfaction == 3)] = 'High'
+employees$RelationshipSatisfaction[which(employees$RelationshipSatisfaction == 4)] = 'Very High'
+employees$RelationshipSatisfaction = as.factor(employees$RelationshipSatisfaction)
+summary(employees$RelationshipSatisfaction)
+
+employees$WorkLifeBalance[which(employees$WorkLifeBalance == 1)] = 'Bad'
+employees$WorkLifeBalance[which(employees$WorkLifeBalance == 2)] = 'Good'
+employees$WorkLifeBalance[which(employees$WorkLifeBalance == 3)] = 'Better'
+employees$WorkLifeBalance[which(employees$WorkLifeBalance == 4)] = 'Best'
+employees$WorkLifeBalance = as.factor(employees$WorkLifeBalance)
+summary(employees$WorkLifeBalance)
+
+```
+
+
+Highest job satisfaction vs education fields
+```{r jobsatisfaction}
+library(ggmosaic)
+
+ggplot(data = employees) +
+   geom_mosaic(aes(x = product(JobSatisfaction, EducationField), fill=EducationField), na.rm=TRUE) + labs(x = "Education Field", title='f(JobSatisfaction | Education Field)', y='Job Satisfaction')
+
+#Chi square says no significant difference in job satisfaction across education fields
+table(employees$JobSatisfaction, employees$EducationField)
+chisq.test(table(employees$JobSatisfaction, employees$EducationField))
+
+```
+
+What continuous variables have a difference in distribution of the response?
+pairs plots continuous
+
+```{r, message=FALSE}
+library(GGally)
+
+#there's 22 continuous variables
+employees %>%
+  select_if(is.numeric) %>%
+  dim()
+
+employees %>%
+  select_if(is.numeric) %>%
+  select(1:5) %>%
+  mutate(Attrition = employees$Attrition) %>%
+  sample_n(200) %>%
+  ggpairs(aes(colour = Attrition)) + 
+  ggtitle("Pairs Plot")
+
+employees %>%
+  select_if(is.numeric) %>%
+  select(6:10) %>%
+  mutate(Attrition = employees$Attrition) %>%
+  sample_n(200) %>%
+  ggpairs(aes(colour = Attrition)) + 
+  ggtitle("Pairs Plot")
+
+employees %>%
+  select_if(is.numeric) %>%
+  select(11:16) %>%
+  mutate(Attrition = employees$Attrition) %>%
+  sample_n(200) %>%
+  ggpairs(aes(colour = Attrition)) + 
+  ggtitle("Pairs Plot")
+
+employees %>%
+  select_if(is.numeric) %>%
+  select(17:22) %>%
+  mutate(Attrition = employees$Attrition) %>%
+  sample_n(200) %>%
+  ggpairs(aes(colour = Attrition)) + 
+  ggtitle("Pairs Plot")
+
+```
+
+Check for multicollinearity between continuous variables
+```{r}
+
+library(corrplot)
+## corrplot 0.84 loaded
+M <- employees %>%
+  select_if(is.numeric) %>%
+  cor()
+
+corrplot(M, method = "circle")
+```
+
+
+What categorical variables have a difference in distribution in response?
+```{r, message=FALSE}
+
+#there's 14 categorical variables
+employees %>%
+  select_if(is.factor) %>%
+  dim()
+
+categs <- names(select_if(employees, is.factor))
+
+for(i in 1:length(categs)){
+  print(employees %>%
+    ggplot(aes(x = eval(parse(text=categs[i])), fill = Attrition)) +
+    geom_bar(position = "fill") +
+    xlab(categs[i])
+  )
+}
+
+```
+
+setting up train test split
+```{r}
+
+split_train_test <- function(df) {
+  # dataset with "no"
+  data_no = df[which(df$Attrition=="No"),]
+  # dataset with "yes"
+  data_yes = df[which(df$Attrition=="Yes"),]
+  
+  #making more folds on No to balance the number with Yes 
+  folds_no = createFolds(data_no$Attrition, k=8)
+  folds_yes = createFolds(data_yes$Attrition, k=2)
+  length(folds_no$Fold1)
+  length(folds_no$Fold2)
+  length(folds_yes$Fold1)
+  length(folds_yes$Fold2)
+  
+  #Train
+  train_no = data_no[folds_no$Fold1,]
+  train_yes = data_yes[folds_yes$Fold1,]
+  train = rbind(train_no, train_yes)
+  
+  #Test
+  test_no = data_no[c(folds_no$Fold2, folds_no$Fold3, folds_no$Fold4, folds_no$Fold5),]
+  test_yes = data_yes[folds_yes$Fold2,]
+  test = rbind(test_no, test_yes)
+  
+  return(list(train, test))
+}
+```
+
+Predict attrition - Naive Bayes
+```{r}
+library(caret)
+library(e1071)
+library(ROCR)
+library(plotROC)
+
+#naive bayes
+#balanced training set
+train1 <- split_train_test(employees)[[1]]
+test1 <- split_train_test(employees)[[2]]
+model.nb1 <- naiveBayes(Attrition ~ ., data=train1)
+preds.nb1 <- predict(model.nb1, test1)
+confusionMatrix(table(preds.nb1, test1$Attrition))
+preds.nb1 <- predict(model.nb1, test1, type = "raw")
+preds.nb1 <- prediction(preds.nb1[,2], test1$Attrition)
+roc.perf_1 = performance(preds.nb1, measure = "tpr", x.measure = "fpr")
+
+#unbalanced training set
+folds <- createFolds(employees$Attrition, k=2)
+train2 <- employees[folds$Fold1,]
+test2 <- employees[folds$Fold2,]
+model.nb2 <- naiveBayes(Attrition ~ ., data=train2)
+preds.nb2 <- predict(model.nb2, test2)
+confusionMatrix(table(preds.nb2, test2$Attrition))
+preds.nb2 <- predict(model.nb2, test2, type = "raw")
+preds.nb2 <- prediction(preds.nb2[,2], test2$Attrition)
+roc.perf_2 = performance(preds.nb2, measure = "tpr", x.measure = "fpr")
+
+#the balanced one definitely looks better and .25 seems a good threshold
+plot(roc.perf_1, col="red")
+plot(roc.perf_2, add = TRUE, col="blue")
+```
+
+Predict attrition - KNN
+```{r knn}
+#KNN
+##load the package class
+ library(class)
+
+#resetting employees data set to original with ordinal columns because KNN only takes numeric
+employees_num <- read.csv("CaseStudy2-data.csv")
+
+employees_num <- employees_num %>%
+  select_if(is.numeric) %>%
+  mutate(Attrition = employees_num$Attrition)
+
+train <- split_train_test(employees_num)[[1]]
+test <- split_train_test(employees_num)[[2]]
+
+##run knn k=8 and make ROC--it looks really bad
+preds.knn <- knn(train[, names(train) != "Attrition"], test[, names(train) != "Attrition"], cl=train$Attrition, k=8, prob=TRUE)
+prob.knn <- attr(preds.knn, "prob")
+preds.knn <- prediction(prob.knn, test$Attrition)
+roc.perf_knn = performance(preds.knn, measure = "tpr", x.measure = "fpr")
+auc <- performance(preds.knn, measure = "auc")
+auc <- auc@y.values
+plot(roc.perf_knn, colorize = TRUE)
+
+auc.knns <- c()
+for(i in 1:80) {
+#train test split
+train <- split_train_test(employees_num)[[1]]
+test <- split_train_test(employees_num)[[2]]
+
+##run knn
+preds.knn <- knn(train[, names(train) != "Attrition"], test[, names(train) != "Attrition"], cl=train$Attrition, k=i, prob=TRUE)
+prob.knn <- attr(preds.knn, "prob")
+preds.knn <- prediction(prob.knn, test$Attrition)
+roc.perf_knn = performance(preds.knn, measure = "tpr", x.measure = "fpr")
+auc <- performance(preds.knn, measure = "auc")
+auc <- auc@y.values
+auc.knns <- c(auc.knns, auc)
+}
+plot(x=1:80, y=auc.knns, xlab="k", main = "AUCs of KNN models with k=[1,80]")
+#all the KNN models are bad
+
+#add categorical variables 
+employees_num <- read.csv("CaseStudy2-data.csv")
+
+employees_num$BusinessTravel = as.numeric(employees_num$BusinessTravel)
+employees_num$Department = as.numeric(employees_num$Department)
+employees_num$EducationField = as.numeric(employees_num$EducationField)
+employees_num$Gender = as.numeric(employees_num$Gender)
+employees_num$JobRole = as.numeric(employees_num$JobRole)
+employees_num$MaritalStatus = as.numeric(employees_num$MaritalStatus)
+employees_num$OverTime = as.numeric(employees_num$OverTime)
+
+employees_num <- employees_num %>%
+  select_if(is.numeric) %>%
+  mutate(Attrition = employees_num$Attrition)
+
+train <- split_train_test(employees_num)[[1]]
+test <- split_train_test(employees_num)[[2]]
+
+train$Attrition = as.character(train$Attrition)
+train$Attrition[which(train$Attrition == "No")] = 0
+train$Attrition[which(train$Attrition == "Yes")] = 1
+train$Attrition = as.numeric(train$Attrition)
+
+test$Attrition = as.character(test$Attrition)
+test$Attrition[which(test$Attrition == "No")] = 0
+test$Attrition[which(test$Attrition == "Yes")] = 1
+test$Attrition = as.numeric(test$Attrition)
+
+str(train)
+str(test)
+##run knn k=18 and make ROC
+preds.knn <- knn(train[, names(train) != "Attrition"], test[, names(train) != "Attrition"], cl=as.factor(train$Attrition), k=18, prob=TRUE)
+prob.knn <- attr(preds.knn, "prob")
+preds.knn <- prediction(prob.knn, test$Attrition)
+roc.perf_knn = performance(preds.knn, measure = "tpr", x.measure = "fpr")
+auc <- performance(preds.knn, measure = "auc")
+auc <- auc@y.values
+auc.knns <- c(auc.knns, auc)
+plot(roc.perf_knn, colorize = TRUE)
+
+auc.knns <- c()
+for(i in 1:80) {
+#train test split
+train <- split_train_test(employees_num)[[1]]
+test <- split_train_test(employees_num)[[2]]
+
+##plot auc of knn for many ks
+preds.knn <- knn(train[, names(train) != "Attrition"], test[, names(train) != "Attrition"], cl=train$Attrition, k=i, prob=TRUE)
+prob.knn <- attr(preds.knn, "prob")
+preds.knn <- prediction(prob.knn, test$Attrition)
+roc.perf_knn = performance(preds.knn, measure = "tpr", x.measure = "fpr")
+auc <- performance(preds.knn, measure = "auc")
+auc <- auc@y.values
+auc.knns <- c(auc.knns, auc)
+}
+plot(x=1:80, y=auc.knns, xlab="k", main = "AUCs of KNN models with k=[1,80]")
+#they're all still bad
+```
+
+
+```{r categorize}
+#RF
+library(randomForest)
+
+train <- split_train_test(employees)[[1]]
+test <- split_train_test(employees)[[2]]
+
+model.rf <- randomForest(Attrition ~ ., data = train, importance = TRUE)
+preds.rf <- predict(model.rf, test)
+
+confusionMatrix(table(preds.rf, test$Attrition), positive = "Yes")
+
+prob.rf <- predict(model.rf, test, type = "prob")
+preds.rf <- prediction(prob.rf[,2], test$Attrition)
+roc.rf = performance(preds.rf, measure = "tpr", x.measure = "fpr")
+
+#the balanced one definitely looks better and .25 seems a good threshold
+plot(roc.perf_1, col="red")
+plot(roc.rf, add = TRUE, col="blue")
+
+```
+
+Random forest wins!
+
+Regression time
+
+What continuous variables have a difference in distribution of the Monthly Income?
+pairs plots continuous
+
+```{r, message=FALSE}
+library(GGally)
+
+employees <- read.csv("CaseStudy2-data.csv")
+employees$Over18 <- NULL
+
+#there's 22 numeric variables
+employees %>%
+  select_if(is.numeric) %>%
+  dim()
+
+employees %>%
+  ggplot(aes(x=MonthlyIncome)) +
+  geom_histogram()
+
+employees %>%
+  select_if(is.numeric) %>%
+  select(1:5) %>%
+  mutate(MonthlyIncome = employees$MonthlyIncome) %>%
+  sample_n(200) %>%
+  ggpairs() + 
+  ggtitle("Pairs Plot")
+
+employees %>%
+  select_if(is.numeric) %>%
+  select(6:10) %>%
+  mutate(MonthlyIncome = employees$MonthlyIncome) %>%
+  sample_n(200) %>%
+  ggpairs() + 
+  ggtitle("Pairs Plot")
+
+employees %>%
+  select_if(is.numeric) %>%
+  select(11:15) %>%
+  mutate(MonthlyIncome = employees$MonthlyIncome) %>%
+  sample_n(200) %>%
+  ggpairs() + 
+  ggtitle("Pairs Plot")
+
+employees %>%
+  select_if(is.numeric) %>%
+  select(16:20) %>%
+  mutate(MonthlyIncome = employees$MonthlyIncome) %>%
+  sample_n(200) %>%
+  ggpairs() + 
+  ggtitle("Pairs Plot")
+
+employees %>%
+  select_if(is.numeric) %>%
+  select(21:27) %>%
+  mutate(MonthlyIncome = employees$MonthlyIncome) %>%
+  sample_n(200) %>%
+  ggpairs() + 
+  ggtitle("Pairs Plot")
+```
+
+```{r}
+employees$logMonthlyIncome = log(employees$MonthlyIncome)
+
+model.lm <- lm(MonthlyIncome ~ ., data=employees)
+plot(model.lm)
+```
+
+
+Predicting Salary -- linear Regression
+```{r}
+
+model.lm <- lm(logMonthlyIncome ~ ., data=employees)
+plot(model.lm)
+
+model.lm2 <- lm(MonthlyIncome~JobLevel*TotalWorkingYears, data=employees)
+plot(model.lm2)
+
+
+```
+
+LR EDA
+```{r EDALR}
+employees  %>%
+  mutate(IncomeBrackets = cut(employees$MonthlyIncome, 15)) %>%
+  select(c(TotalWorkingYears, YearsAtCompany, YearsInCurrentRole, YearsSinceLastPromotion, YearsWithCurrManager, IncomeBrackets)) %>%
+  ggpairs(aes(fill=IncomeBrackets))
+
+#Plots of working years vs income, colored by various elements to see if they make a good split
+employees  %>%
+  mutate(PromotionBins = cut(employees$YearsSinceLastPromotion, 10)) %>%
+  ggplot(aes(x=TotalWorkingYears, MonthlyIncome, colour=PromotionBins)) +
+  geom_point()
+
+employees  %>%
+  mutate(TenureBins = cut(employees$YearsAtCompany, 10)) %>%
+  ggplot(aes(x=TotalWorkingYears, MonthlyIncome, colour=TenureBins)) +
+  geom_point()
+  
+employees  %>%
+  mutate(ManagerBins = cut(employees$YearsWithCurrManager, 10)) %>%
+  ggplot(aes(x=TotalWorkingYears, MonthlyIncome, colour=ManagerBins)) +
+  geom_point()
+  
+employees  %>%
+  mutate(RoleBins = cut(employees$YearsInCurrentRole, 10)) %>%
+  ggplot(aes(x=TotalWorkingYears, MonthlyIncome, colour=RoleBins)) +
+  geom_point()
+
+employees  %>%
+  ggplot(aes(x=TotalWorkingYears, MonthlyIncome, colour=factor(JobLevel))) +
+  geom_point()
+
+employees  %>%
+  mutate(IncomeBins = cut(employees$MonthlyIncome, 10)) %>%
+  ggplot(aes(x=TotalWorkingYears, JobLevel, colour=IncomeBins)) +
+  geom_point()
+
+employees_yrs <- employees  %>%
+  select(c(TotalWorkingYears, YearsAtCompany, YearsInCurrentRole, YearsSinceLastPromotion, YearsWithCurrManager))
+
+employees_pcs <- prcomp(employees_yrs, scale = TRUE)
+
+employees %>%
+  ggplot(aes(x=employees_pcs$x[,1], y=MonthlyIncome)) +
+  geom_point()
+
+employees %>%
+  mutate(IncomeBins = cut(employees$MonthlyIncome, 10)) %>%
+  mutate(PC1 = employees_pcs$x[,1]) %>%
+  mutate(PC2 = employees_pcs$x[,2]) %>%
+ggplot(aes(x=JobLevel, y=PC2, colour=IncomeBins)) +
+  geom_point()
+       
+```
+
