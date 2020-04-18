@@ -618,6 +618,58 @@ print("RMSE:")
 RMSE(preds.lm.forward, test$MonthlyIncome)
 ```
 
+EDA for KNN for income
+LR EDA
+
+```{r EDALR}
+
+ #Plots of working years vs income, colored by various elements to see if they make a good split
+ employees  %>%
+   mutate(PromotionBins = cut(employees$YearsSinceLastPromotion, 10)) %>%
+   ggplot(aes(x=TotalWorkingYears, MonthlyIncome, colour=PromotionBins)) +
+   geom_point()
+
+ employees  %>%
+   mutate(TenureBins = cut(employees$YearsAtCompany, 10)) %>%
+   ggplot(aes(x=TotalWorkingYears, MonthlyIncome, colour=TenureBins)) +
+   geom_point()
+   
+ employees  %>%
+   mutate(ManagerBins = cut(employees$YearsWithCurrManager, 10)) %>%
+   ggplot(aes(x=TotalWorkingYears, MonthlyIncome, colour=ManagerBins)) +
+   geom_point()
+   
+ employees  %>%
+   mutate(RoleBins = cut(employees$YearsInCurrentRole, 10)) %>%
+   ggplot(aes(x=TotalWorkingYears, MonthlyIncome, colour=RoleBins)) +
+   geom_point()
+
+ employees  %>%
+   ggplot(aes(x=TotalWorkingYears, MonthlyIncome, colour=factor(JobLevel))) +
+   geom_point()
+
+ employees  %>%
+   mutate(IncomeBins = cut(employees$MonthlyIncome, 10)) %>%
+   ggplot(aes(x=TotalWorkingYears, JobLevel, colour=IncomeBins)) +
+   geom_point()
+
+ employees_yrs <- employees  %>%
+   select(c(TotalWorkingYears, YearsAtCompany, YearsInCurrentRole, YearsSinceLastPromotion, YearsWithCurrManager))
+
+ employees_pcs <- prcomp(employees_yrs, scale = TRUE)
+
+ employees %>%
+   ggplot(aes(x=employees_pcs$x[,1], y=MonthlyIncome)) +
+   geom_point()
+
+ employees %>%
+   mutate(IncomeBins = cut(employees$MonthlyIncome, 10)) %>%
+   mutate(PC1 = employees_pcs$x[,1]) %>%
+   mutate(PC2 = employees_pcs$x[,2]) %>%
+ ggplot(aes(x=PC1, y=PC2, colour=IncomeBins)) +
+   geom_point()
+```
+
 KNN regression
 ```{r}
 employees_z2 <- employees_z %>%
@@ -625,21 +677,44 @@ employees_z2 <- employees_z %>%
   mutate(zAttrition = scale(as.numeric(Attrition)))
 employees_z2$Attrition <- NULL
 employees_z2$zMonthlyIncome <- NULL
-  
+employees_z2$PC1 <- employees_pcs$x[,1]
+employees_z2$PC2 <- employees_pcs$x[,2]
+employees_z2$PC3 <- employees_pcs$x[,3]
+
 #train test split
 folds <- createFolds(employees_z2$MonthlyIncome, k=2)
 train <- employees_z2[folds$Fold1,]
 test <- employees_z2[folds$Fold2,]
 
-##run knn
+##run knn with everything
 preds.knn <- knn(train[, names(train) != "MonthlyIncome"], test[, names(train) != "MonthlyIncome"], cl=train$MonthlyIncome, k=10)
 preds.knn <- as.numeric(preds.knn)
 plot(x=preds.knn, y=test$MonthlyIncome)
+#gross
+print("RMSE:")
+RMSE(preds.knn, test$MonthlyIncome)
 
 ##run knn with just a few manually selected variables
-preds.knn <- knn(train[, names(train) != "MonthlyIncome"], test[, names(train) != "MonthlyIncome"], cl=train$MonthlyIncome, k=10)
+preds.knn <- knn(train[, c("zJobRole", "zJobLevel", "zTotalWorkingYears")], test[, c("zJobRole", "zJobLevel", "zTotalWorkingYears")], cl=train$MonthlyIncome, k=10)
 preds.knn <- as.numeric(preds.knn)
 plot(x=preds.knn, y=test$MonthlyIncome)
+print("RMSE:")
+RMSE(preds.knn, test$MonthlyIncome)
+#not bad
 
+##run knn with even fewer manually selected variables
+preds.knn <- knn(train[, c("zJobLevel", "zTotalWorkingYears")], test[, c("zJobLevel", "zTotalWorkingYears")], cl=train$MonthlyIncome, k=10)
+preds.knn <- as.numeric(preds.knn)
+plot(x=preds.knn, y=test$MonthlyIncome)
+print("RMSE:")
+RMSE(preds.knn, test$MonthlyIncome)
+#not bad
+
+##run knn with PCs
+preds.knn <- knn(train[, c("zJobRole", "zJobLevel", "PC1", "PC2", "PC3")], test[, c("zJobRole", "zJobLevel", "PC1", "PC2", "PC3")], cl=train$MonthlyIncome, k=10)
+preds.knn <- as.numeric(preds.knn)
+plot(x=preds.knn, y=test$MonthlyIncome)
+print("RMSE:")
+RMSE(preds.knn, test$MonthlyIncome)
 ```
 
