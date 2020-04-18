@@ -207,7 +207,7 @@ for(i in 1:length(categs)){
 
 ```
 
-setting up train test split
+setting up balanced train test split
 ```{r}
 
 split_train_test <- function(df) {
@@ -272,14 +272,75 @@ plot(roc.perf_1, col="red")
 plot(roc.perf_2, add = TRUE, col="blue")
 ```
 
+make numeric and make standardize scale data for KNN
+```{r}
+#re-read in data
+employees_num <- read.csv("CaseStudy2-data.csv")
+
+#get rid of useless variables
+employees_num$Over18 <- NULL
+employees_num$ID <- NULL
+
+#numericize categorical variables
+employees_num$BusinessTravel = as.numeric(employees_num$BusinessTravel)
+employees_num$Department = as.numeric(employees_num$Department)
+employees_num$EducationField = as.numeric(employees_num$EducationField)
+employees_num$Gender = as.numeric(employees_num$Gender)
+employees_num$JobRole = as.numeric(employees_num$JobRole)
+employees_num$MaritalStatus = as.numeric(employees_num$MaritalStatus)
+employees_num$OverTime = as.numeric(employees_num$OverTime)
+
+n <- dim(employees_num)[2]
+
+#scale
+employees_z <- employees_num %>%
+mutate(zAge = scale(Age))  %>% 
+mutate(zBusinessTravel = scale(BusinessTravel)) %>%
+mutate(zDailyRate = scale(DailyRate)) %>%
+mutate(zDepartment = scale(Department)) %>%
+mutate(zDistanceFromHome = scale(DistanceFromHome)) %>%
+mutate(zEducation = scale(Education)) %>%
+mutate(zEducationField = scale(EducationField)) %>%
+mutate(zEmployeeCount = scale(EmployeeCount)) %>%
+mutate(zEmployeeNumber = scale(EmployeeNumber)) %>%
+mutate(zEnvironmentSatisfaction = scale(EnvironmentSatisfaction)) %>%
+mutate(zGender = scale(Gender)) %>%
+mutate(zHourlyRate = scale(HourlyRate))           %>%
+mutate(zJobInvolvement = scale(JobInvolvement)) %>%
+mutate(zJobLevel = scale(JobLevel)) %>%
+mutate(zJobRole = scale(JobRole)) %>%
+mutate(zJobSatisfaction = scale(JobSatisfaction)) %>%
+mutate(zMaritalStatus = scale(MaritalStatus)) %>%
+mutate(zMonthlyIncome = scale(MonthlyIncome)) %>%
+mutate(zMonthlyRate = scale(MonthlyRate)) %>%
+mutate(zNumCompaniesWorked = scale(NumCompaniesWorked)) %>%
+mutate(zOverTime = scale(OverTime)) %>%
+mutate(zPercentSalaryHike = scale(PercentSalaryHike)) %>%
+mutate(zPerformanceRating = scale(PerformanceRating)) %>%
+mutate(zRelationshipSatisfaction = scale(RelationshipSatisfaction)) %>%
+mutate(zStandardHours = scale(StandardHours)) %>%
+mutate(zStockOptionLevel = scale(StockOptionLevel)) %>%
+mutate(zTotalWorkingYears = scale(TotalWorkingYears)) %>%
+mutate(zTrainingTimesLastYear = scale(TrainingTimesLastYear)) %>%
+mutate(zWorkLifeBalance = scale(WorkLifeBalance)) %>%
+mutate(zYearsAtCompany = scale(YearsAtCompany)) %>%
+mutate(zYearsInCurrentRole = scale(YearsInCurrentRole)) %>%
+mutate(zYearsSinceLastPromotion = scale(YearsSinceLastPromotion)) %>%
+mutate(zYearsWithCurrManager = scale(YearsWithCurrManager))
+
+nz <- dim(employees_z)[2]
+employees_z <- employees_z[,c((n+1):nz)]
+employees_z$Attrition = employees$Attrition
+str(employees_z)
+
+```
+
+
 Predict attrition - KNN
 ```{r knn}
 #KNN
 ##load the package class
  library(class)
-
-#resetting employees data set to original with ordinal columns because KNN only takes numeric
-employees_num <- read.csv("CaseStudy2-data.csv")
 
 employees_num <- employees_num %>%
   select_if(is.numeric) %>%
@@ -315,16 +376,7 @@ auc.knns <- c(auc.knns, auc)
 plot(x=1:80, y=auc.knns, xlab="k", main = "AUCs of KNN models with k=[1,80]")
 #all the KNN models are bad
 
-#add categorical variables 
-employees_num <- read.csv("CaseStudy2-data.csv")
-
-employees_num$BusinessTravel = as.numeric(employees_num$BusinessTravel)
-employees_num$Department = as.numeric(employees_num$Department)
-employees_num$EducationField = as.numeric(employees_num$EducationField)
-employees_num$Gender = as.numeric(employees_num$Gender)
-employees_num$JobRole = as.numeric(employees_num$JobRole)
-employees_num$MaritalStatus = as.numeric(employees_num$MaritalStatus)
-employees_num$OverTime = as.numeric(employees_num$OverTime)
+#second time
 
 employees_num <- employees_num %>%
   select_if(is.numeric) %>%
@@ -578,61 +630,6 @@ plot(lm.forward)
 preds.lm.forward <- predict(lm.forward, test)
 print("RMSE:")
 RMSE(preds.lm.forward, test$MonthlyIncome)
-```
-
-LR EDA
-```{r EDALR}
-employees  %>%
-  mutate(IncomeBrackets = cut(employees$MonthlyIncome, 15)) %>%
-  select(c(TotalWorkingYears, YearsAtCompany, YearsInCurrentRole, YearsSinceLastPromotion, YearsWithCurrManager, IncomeBrackets)) %>%
-  ggpairs(aes(fill=IncomeBrackets))
-
-#Plots of working years vs income, colored by various elements to see if they make a good split
-employees  %>%
-  mutate(PromotionBins = cut(employees$YearsSinceLastPromotion, 10)) %>%
-  ggplot(aes(x=TotalWorkingYears, MonthlyIncome, colour=PromotionBins)) +
-  geom_point()
-
-employees  %>%
-  mutate(TenureBins = cut(employees$YearsAtCompany, 10)) %>%
-  ggplot(aes(x=TotalWorkingYears, MonthlyIncome, colour=TenureBins)) +
-  geom_point()
-  
-employees  %>%
-  mutate(ManagerBins = cut(employees$YearsWithCurrManager, 10)) %>%
-  ggplot(aes(x=TotalWorkingYears, MonthlyIncome, colour=ManagerBins)) +
-  geom_point()
-  
-employees  %>%
-  mutate(RoleBins = cut(employees$YearsInCurrentRole, 10)) %>%
-  ggplot(aes(x=TotalWorkingYears, MonthlyIncome, colour=RoleBins)) +
-  geom_point()
-
-employees  %>%
-  ggplot(aes(x=TotalWorkingYears, MonthlyIncome, colour=factor(JobLevel))) +
-  geom_point()
-
-employees  %>%
-  mutate(IncomeBins = cut(employees$MonthlyIncome, 10)) %>%
-  ggplot(aes(x=TotalWorkingYears, JobLevel, colour=IncomeBins)) +
-  geom_point()
-
-employees_yrs <- employees  %>%
-  select(c(TotalWorkingYears, YearsAtCompany, YearsInCurrentRole, YearsSinceLastPromotion, YearsWithCurrManager))
-
-employees_pcs <- prcomp(employees_yrs, scale = TRUE)
-
-employees %>%
-  ggplot(aes(x=employees_pcs$x[,1], y=MonthlyIncome)) +
-  geom_point()
-
-employees %>%
-  mutate(IncomeBins = cut(employees$MonthlyIncome, 10)) %>%
-  mutate(PC1 = employees_pcs$x[,1]) %>%
-  mutate(PC2 = employees_pcs$x[,2]) %>%
-ggplot(aes(x=JobLevel, y=PC2, colour=IncomeBins)) +
-  geom_point()
-       
 ```
 
 KNN regression
