@@ -7,6 +7,8 @@ output: html_document
 
 ## Introduction
 
+See YouTube for my oral presentation walk through of this content: https://youtu.be/3jkTX-NO4VQ
+
 This is an analysis of employee data. We will:
 
 1) Explore trends and insights about job roles
